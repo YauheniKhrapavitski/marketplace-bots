@@ -1,0 +1,42 @@
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: sh -c "alembic upgrade head && python -m app.main"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  ttn-bot:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: python -m ttn_bot.main
+    volumes:
+      - ./data:/app/data
+      - ./tmp:/app/tmp
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wb_assistant
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d wb_assistant"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:

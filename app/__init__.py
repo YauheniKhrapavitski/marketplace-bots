@@ -1,0 +1,1 @@
+"""Wildberries feedback Telegram assistant."""

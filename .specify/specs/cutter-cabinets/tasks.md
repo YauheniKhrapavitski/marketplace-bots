@@ -1,0 +1,23 @@
+# Cutter Cabinets Tasks
+
+- [x] Create durable specification from the provided technical assignment.
+- [x] Create technical plan and identify unresolved implementation decisions.
+- [x] Decide repository boundary: separate repository or `cutter-cabinets/` subproject.
+- [x] Decide first-release source provider and source UID approach.
+- [x] Scaffold the selected TypeScript web app with local PostgreSQL and documented commands.
+- [x] Add project-local README and `.env.example` without secrets.
+- [x] Implement database schema and migrations for users, cutter profiles, source connections, source items, overrides, sync runs, sync errors, and audit log.
+- [x] Add seed admin and demo cutter data with fictional values only.
+- [ ] Implement authentication, sessions, temporary-password change, admin reset, and login audit.
+- [x] Implement server-side authorization for cutter-owned item access and admin-only endpoints.
+- [x] Implement Google Sheets read-only adapter for configured spreadsheet tabs.
+- [x] Implement row normalization for columns `A:O`, checksum calculation, and stable `source_uid` handling.
+- [ ] Implement idempotent sync worker with upsert, archive-on-missing, per-row errors, and sync counters.
+- [ ] Implement cutter item APIs with pagination, filtering, sorting, override patch/delete, and bulk actions.
+- [ ] Implement admin APIs for users, bindings, source settings, manual sync, sync runs, errors, and audit.
+- [ ] Build the cutter cabinet UI: table, search, filters, sort, edit panel, override indicators, reset actions, sync status.
+- [ ] Build the admin UI: users, source settings, sync screen, errors, audit log.
+- [x] Add unit tests for normalization, checksum, merge, archive, and authorization.
+- [ ] Add integration tests for sync cases, including duplicate prevention and source deletion.
+- [ ] Add E2E tests for cutter and admin happy paths.
+- [ ] Run lint, typecheck, unit/integration/E2E tests, and production build.

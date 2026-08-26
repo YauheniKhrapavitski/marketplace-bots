@@ -1,0 +1,61 @@
+[project]
+name = "wb-feedback-telegram-assistant"
+version = "0.1.0"
+description = "Telegram assistant for operator-approved Wildberries feedback replies"
+requires-python = ">=3.12"
+dependencies = [
+    "aiogram==3.21.0",
+    "alembic==1.16.4",
+    "apscheduler==3.11.0",
+    "asyncpg==0.30.0",
+    "cryptography==45.0.5",
+    "fastapi==0.116.1",
+    "httpx==0.28.1",
+    "openpyxl==3.1.5",
+    "pdfplumber==0.11.7",
+    "pymupdf==1.26.3",
+    "pydantic==2.11.7",
+    "pydantic-settings==2.10.1",
+    "reportlab==4.4.5",
+    "sqlalchemy==2.0.41",
+    "uvicorn==0.35.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "mypy==1.16.1",
+    "pytest==8.4.1",
+    "pytest-asyncio==1.0.0",
+    "ruff==0.12.3",
+]
+
+[build-system]
+requires = ["setuptools>=78"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*", "ttn_bot*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC", "S"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S106", "S107"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

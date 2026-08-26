@@ -1,0 +1,1 @@
+"""Wildberries feedback API integration."""

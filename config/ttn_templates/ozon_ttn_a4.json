@@ -1,0 +1,77 @@
+{
+  "name": "ozon_ttn_a4",
+  "page_width_min": 560,
+  "page_width_max": 620,
+  "page_height_min": 780,
+  "page_height_max": 880,
+  "required_phrases": [
+    "ТОВАРНЫЙ РАЗДЕЛ",
+    "Автомобиль",
+    "Водитель",
+    "Отпуск разрешил",
+    "Сдал грузоотправитель",
+    "Товар к перевозке принял"
+  ],
+  "appendix": {
+    "phrase": "Приложение к накладной серии",
+    "series_dx": 84,
+    "number_dx": 122,
+    "dy": -2,
+    "series_width": 30,
+    "number_width": 30,
+    "height": 16,
+    "font_size": 6
+  },
+  "fields": [
+    {
+      "key": "vehicle",
+      "label": "Автомобиль",
+      "dx": 43,
+      "dy": -2,
+      "width": 220,
+      "height": 18,
+      "font_size": 10,
+      "clear_existing": false
+    },
+    {
+      "key": "driver",
+      "label": "Водитель",
+      "dx": 35,
+      "dy": -2,
+      "width": 250,
+      "height": 18,
+      "font_size": 10,
+      "clear_existing": false
+    },
+    {
+      "key": "goods_accepted_by",
+      "label": "Товар к перевозке принял",
+      "dx": 88,
+      "dy": -2,
+      "width": 150,
+      "height": 18,
+      "font_size": 10,
+      "clear_existing": false
+    },
+    {
+      "key": "release_allowed_by",
+      "label": "Отпуск разрешил",
+      "dx": 65,
+      "dy": -2,
+      "width": 120,
+      "height": 18,
+      "font_size": 10,
+      "clear_existing": false
+    },
+    {
+      "key": "shipper_handed_over_by",
+      "label": "Сдал грузоотправитель",
+      "dx": 85,
+      "dy": -2,
+      "width": 120,
+      "height": 18,
+      "font_size": 10,
+      "clear_existing": false
+    }
+  ]
+}
