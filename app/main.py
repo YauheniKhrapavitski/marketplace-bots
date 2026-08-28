@@ -93,7 +93,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         bot_task = asyncio.create_task(
             run_polling_with_retries(
                 lambda: dispatcher.start_polling(
-                    bot, polling_timeout=30, close_bot_session=False
+                    bot, polling_timeout=0, close_bot_session=False
                 ),
                 "feedback",
             )
@@ -105,7 +105,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         questions_bot_task = asyncio.create_task(
             run_polling_with_retries(
                 lambda: questions_dispatcher.start_polling(
-                    questions_bot, polling_timeout=30, close_bot_session=False
+                    questions_bot, polling_timeout=0, close_bot_session=False
                 ),
                 "questions",
             )
@@ -117,7 +117,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         ozon_bot_task = asyncio.create_task(
             run_polling_with_retries(
                 lambda: ozon_dispatcher.start_polling(
-                    ozon_bot, polling_timeout=30, close_bot_session=False
+                    ozon_bot, polling_timeout=0, close_bot_session=False
                 ),
                 "ozon",
             )
