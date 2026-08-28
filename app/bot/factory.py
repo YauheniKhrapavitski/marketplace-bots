@@ -1,3 +1,5 @@
+import socket
+
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
@@ -43,6 +45,7 @@ def create_dispatcher(
 
 def create_bot(token: str) -> Bot:
     session = AiohttpSession(timeout=120)
+    session._connector_init["family"] = socket.AF_INET
     return Bot(
         token=token,
         session=session,
