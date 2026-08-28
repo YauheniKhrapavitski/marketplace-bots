@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -14,6 +15,30 @@ from app.repositories.feedback_repository import FeedbackRepository
 from app.repositories.ozon_review_repository import OzonReviewRepository
 from app.repositories.question_repository import QuestionRepository
 from app.workers.scheduler import create_scheduler, scheduler_state
+
+logger = logging.getLogger(__name__)
+
+
+async def setup_bot_commands_without_blocking_startup(
+    bot,
+    *,
+    questions_only: bool = False,
+    ozon_only: bool = False,
+    include_questions: bool = False,
+) -> None:
+    try:
+        await setup_bot_commands(
+            bot,
+            questions_only=questions_only,
+            ozon_only=ozon_only,
+            include_questions=include_questions,
+        )
+    except Exception:
+        logger.warning(
+            "telegram command setup failed",
+            exc_info=True,
+            extra={"service": "telegram", "event": "telegram_command_setup_failed"},
+        )
 
 
 @asynccontextmanager
@@ -32,19 +57,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     ozon_bot_task: asyncio.Task[None] | None = None
     if settings.telegram_bot_token:
         bot = create_bot(settings.telegram_bot_token)
-        await setup_bot_commands(
+        await setup_bot_commands_without_blocking_startup(
             bot, include_questions=not bool(settings.questions_telegram_bot_token)
         )
         dispatcher = create_dispatcher(settings)
         bot_task = asyncio.create_task(dispatcher.start_polling(bot))
     if settings.questions_telegram_bot_token:
         questions_bot = create_bot(settings.questions_telegram_bot_token)
-        await setup_bot_commands(questions_bot, questions_only=True)
+        await setup_bot_commands_without_blocking_startup(questions_bot, questions_only=True)
         questions_dispatcher = create_dispatcher(settings, questions_only=True)
         questions_bot_task = asyncio.create_task(questions_dispatcher.start_polling(questions_bot))
     if settings.ozon_telegram_bot_token:
         ozon_bot = create_bot(settings.ozon_telegram_bot_token)
-        await setup_bot_commands(ozon_bot, ozon_only=True)
+        await setup_bot_commands_without_blocking_startup(ozon_bot, ozon_only=True)
         ozon_dispatcher = create_dispatcher(settings, ozon_only=True)
         ozon_bot_task = asyncio.create_task(ozon_dispatcher.start_polling(ozon_bot))
     try:

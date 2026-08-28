@@ -36,12 +36,13 @@ def create_scheduler(settings: Settings) -> AsyncIOScheduler:
             max_instances=1,
             coalesce=True,
         )
-    scheduler.add_job(
-        run_ozon_review_sync_once,
-        "interval",
-        minutes=settings.sync_interval_minutes,
-        id="ozon_review_sync",
-        max_instances=1,
-        coalesce=True,
-    )
+    if settings.ozon_client_id and settings.ozon_api_key:
+        scheduler.add_job(
+            run_ozon_review_sync_once,
+            "interval",
+            minutes=settings.sync_interval_minutes,
+            id="ozon_review_sync",
+            max_instances=1,
+            coalesce=True,
+        )
     return scheduler
