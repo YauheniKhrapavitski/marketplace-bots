@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -41,6 +41,35 @@ async def setup_bot_commands_without_blocking_startup(
         )
 
 
+async def run_polling_with_retries(
+    polling_factory: Callable[[], Awaitable[None]], bot_name: str
+) -> None:
+    while True:
+        try:
+            await polling_factory()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception(
+                "telegram polling failed",
+                extra={
+                    "service": "telegram",
+                    "event": "telegram_polling_failed",
+                    "bot_name": bot_name,
+                },
+            )
+        else:
+            logger.warning(
+                "telegram polling stopped",
+                extra={
+                    "service": "telegram",
+                    "event": "telegram_polling_stopped",
+                    "bot_name": bot_name,
+                },
+            )
+        await asyncio.sleep(15)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
@@ -61,17 +90,33 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             bot, include_questions=not bool(settings.questions_telegram_bot_token)
         )
         dispatcher = create_dispatcher(settings)
-        bot_task = asyncio.create_task(dispatcher.start_polling(bot))
+        bot_task = asyncio.create_task(
+            run_polling_with_retries(
+                lambda: dispatcher.start_polling(bot, close_bot_session=False), "feedback"
+            )
+        )
     if settings.questions_telegram_bot_token:
         questions_bot = create_bot(settings.questions_telegram_bot_token)
         await setup_bot_commands_without_blocking_startup(questions_bot, questions_only=True)
         questions_dispatcher = create_dispatcher(settings, questions_only=True)
-        questions_bot_task = asyncio.create_task(questions_dispatcher.start_polling(questions_bot))
+        questions_bot_task = asyncio.create_task(
+            run_polling_with_retries(
+                lambda: questions_dispatcher.start_polling(
+                    questions_bot, close_bot_session=False
+                ),
+                "questions",
+            )
+        )
     if settings.ozon_telegram_bot_token:
         ozon_bot = create_bot(settings.ozon_telegram_bot_token)
         await setup_bot_commands_without_blocking_startup(ozon_bot, ozon_only=True)
         ozon_dispatcher = create_dispatcher(settings, ozon_only=True)
-        ozon_bot_task = asyncio.create_task(ozon_dispatcher.start_polling(ozon_bot))
+        ozon_bot_task = asyncio.create_task(
+            run_polling_with_retries(
+                lambda: ozon_dispatcher.start_polling(ozon_bot, close_bot_session=False),
+                "ozon",
+            )
+        )
     try:
         yield
     finally:
