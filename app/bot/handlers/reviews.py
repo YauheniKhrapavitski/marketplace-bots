@@ -77,23 +77,39 @@ async def save_manual_answer(message: Message, feedback_id: int, answer_text: st
 
 @router.message(Command("sync"))
 async def sync(message: Message) -> None:
+    await run_review_sync(message, retry_command="/sync", show_next=False)
+
+
+@router.message(Command("process_reviews"))
+async def process_reviews(message: Message) -> None:
+    await run_review_sync(message, retry_command="/process_reviews", show_next=True)
+
+
+async def run_review_sync(
+    message: Message, *, retry_command: str, show_next: bool
+) -> None:
     from app.workers.sync_job import run_sync_once
 
     await message.answer("Синхронизация началась. Проверяю новые отзывы Wildberries.")
     try:
         received, created, updated = await run_sync_once()
     except WildberriesRateLimitError as exc:
-        await message.answer(_wb_rate_limit_message(exc, "/sync"))
+        await message.answer(_wb_rate_limit_message(exc, retry_command))
         return
     except Exception:
         await message.answer(
             "Синхронизация не завершилась. Проверьте WB API-токен, режим sandbox/production "
-            "и повторите /sync."
+            f"и повторите {retry_command}."
         )
         raise
+    async with SessionFactory() as session:
+        queue_count = await FeedbackRepository(session).count_queue()
     await message.answer(
-        f"Синхронизация завершена: получено {received}, новых {created}, обновлено {updated}"
+        f"Синхронизация завершена: получено {received}, новых {created}, "
+        f"обновлено {updated}. Очередь к ручной проверке: {queue_count}"
     )
+    if show_next and queue_count:
+        await send_next_review(message)
 
 
 @router.callback_query(F.data == "review:next")

@@ -20,6 +20,7 @@ async def help_command(message: Message) -> None:
         "/status - состояние интеграции\n"
         "/reviews - следующий отзыв\n"
         "/sync - ручная синхронизация\n"
+        "/process_reviews - обработать накопившиеся отзывы\n"
         "/templates - управление шаблонами\n"
         "/settings - настройки\n"
         "/history - последние операции"

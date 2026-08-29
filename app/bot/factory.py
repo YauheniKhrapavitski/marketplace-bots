@@ -90,6 +90,7 @@ async def setup_bot_commands(
             BotCommand(command="start", description="Главное меню"),
             BotCommand(command="status", description="Статус бота и интеграции"),
             BotCommand(command="sync", description="Проверить новые отзывы"),
+            BotCommand(command="process_reviews", description="Обработать накопившиеся отзывы"),
             BotCommand(command="reviews", description="Показать следующий отзыв"),
             BotCommand(command="templates", description="Шаблоны ответов на отзывы"),
             BotCommand(command="settings", description="Настройки интеграции"),
