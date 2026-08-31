@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     def parse_allowed_user_ids(cls, value: object) -> list[int]:
         if value is None or value == "":
             return []
+        if isinstance(value, int):
+            return [value]
         if isinstance(value, list):
             return [int(item) for item in value]
         if isinstance(value, str):
