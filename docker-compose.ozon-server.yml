@@ -1,0 +1,8 @@
+services:
+  ozon-reviews-bot:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env.ozon
+    network_mode: host
+    command: sh -c "alembic upgrade head && python -m app.ozon_polling_main"
