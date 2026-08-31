@@ -15,6 +15,7 @@ from app.repositories.question_repository import QuestionRepository
 from app.workers.scheduler import create_scheduler, scheduler_state
 
 logger = logging.getLogger(__name__)
+_update_tasks: set[asyncio.Task[object]] = set()
 
 
 async def _setup_bot_commands_without_blocking_startup(bot) -> None:
@@ -42,7 +43,13 @@ async def _run_polling_with_retries(bot, dispatcher) -> None:
             )
             for update in updates:
                 offset = update.update_id + 1
-                await dispatcher.feed_update(bot, update)
+                logger.info(
+                    "Telegram update received",
+                    extra={"service": "telegram", "event": "telegram_update_received"},
+                )
+                update_task = asyncio.create_task(dispatcher.feed_update(bot, update))
+                _update_tasks.add(update_task)
+                update_task.add_done_callback(_update_tasks.discard)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -79,6 +86,9 @@ async def main() -> None:
         scheduler_state.running = False
         if not command_task.done():
             command_task.cancel()
+        for update_task in _update_tasks:
+            if not update_task.done():
+                update_task.cancel()
 
 
 if __name__ == "__main__":
