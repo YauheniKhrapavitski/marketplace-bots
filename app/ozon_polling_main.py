@@ -60,17 +60,37 @@ async def _run_polling_with_retries(bot: Bot, dispatcher: Dispatcher) -> None:
             await asyncio.sleep(15)
 
 
+async def _restore_ozon_state() -> None:
+    logger.info(
+        "Restoring Ozon review state",
+        extra={"service": "app", "event": "ozon_restore_state_started"},
+    )
+    async with SessionFactory() as session:
+        restored = await OzonReviewRepository(session).restore_sending()
+        await session.commit()
+    logger.info(
+        "Ozon review state restored",
+        extra={
+            "service": "app",
+            "event": "ozon_restore_state_finished",
+            "restored_count": restored,
+        },
+    )
+
+
 async def main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
+    if not settings.ozon_telegram_bot_token:
+        raise RuntimeError("OZON_TELEGRAM_BOT_TOKEN is required")
+    if not settings.admin_ids:
+        raise RuntimeError("TELEGRAM_ADMIN_IDS is required")
 
     scheduler = create_scheduler(settings)
     scheduler.start()
     scheduler_state.running = True
 
-    async with SessionFactory() as session:
-        await OzonReviewRepository(session).restore_sending()
-        await session.commit()
+    await asyncio.wait_for(_restore_ozon_state(), timeout=20)
 
     bot = create_bot(settings.ozon_telegram_bot_token)
     telegram_prepare_task = asyncio.create_task(_prepare_telegram_without_blocking_startup(bot))
