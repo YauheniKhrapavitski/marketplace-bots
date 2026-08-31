@@ -1,0 +1,10 @@
+services:
+  wb-bot:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env.wb
+    command: sh -c "alembic upgrade head && python -m app.main"
+    depends_on:
+      db:
+        condition: service_healthy
