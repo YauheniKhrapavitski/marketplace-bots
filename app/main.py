@@ -84,10 +84,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     bot_task: asyncio.Task[None] | None = None
     questions_bot_task: asyncio.Task[None] | None = None
     ozon_bot_task: asyncio.Task[None] | None = None
+    command_tasks: list[asyncio.Task[None]] = []
     if settings.telegram_bot_token:
         bot = create_bot(settings.telegram_bot_token)
-        await setup_bot_commands_without_blocking_startup(
-            bot, include_questions=not bool(settings.questions_telegram_bot_token)
+        command_tasks.append(
+            asyncio.create_task(
+                setup_bot_commands_without_blocking_startup(
+                    bot, include_questions=not bool(settings.questions_telegram_bot_token)
+                )
+            )
         )
         dispatcher = create_dispatcher(settings)
         bot_task = asyncio.create_task(
@@ -100,7 +105,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
     if settings.questions_telegram_bot_token:
         questions_bot = create_bot(settings.questions_telegram_bot_token)
-        await setup_bot_commands_without_blocking_startup(questions_bot, questions_only=True)
+        command_tasks.append(
+            asyncio.create_task(
+                setup_bot_commands_without_blocking_startup(
+                    questions_bot, questions_only=True
+                )
+            )
+        )
         questions_dispatcher = create_dispatcher(settings, questions_only=True)
         questions_bot_task = asyncio.create_task(
             run_polling_with_retries(
@@ -112,7 +123,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
     if settings.ozon_telegram_bot_token:
         ozon_bot = create_bot(settings.ozon_telegram_bot_token)
-        await setup_bot_commands_without_blocking_startup(ozon_bot, ozon_only=True)
+        command_tasks.append(
+            asyncio.create_task(
+                setup_bot_commands_without_blocking_startup(ozon_bot, ozon_only=True)
+            )
+        )
         ozon_dispatcher = create_dispatcher(settings, ozon_only=True)
         ozon_bot_task = asyncio.create_task(
             run_polling_with_retries(
@@ -145,6 +160,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 await ozon_bot_task
             except asyncio.CancelledError:
                 pass
+        for command_task in command_tasks:
+            if not command_task.done():
+                command_task.cancel()
 
 
 def create_app() -> FastAPI:
