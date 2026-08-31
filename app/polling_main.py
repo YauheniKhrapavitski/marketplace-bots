@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from aiogram.methods import GetUpdates
+
 from app.bot.factory import create_bot, create_dispatcher, setup_bot_commands
 from app.config import get_settings
 from app.db.session import SessionFactory
@@ -26,10 +28,21 @@ async def _setup_bot_commands_without_blocking_startup(bot) -> None:
         )
 
 
-async def _run_polling_with_retries(polling_factory) -> None:
+async def _run_polling_with_retries(bot, dispatcher) -> None:
+    offset: int | None = None
     while True:
         try:
-            await polling_factory()
+            updates = await bot(
+                GetUpdates(
+                    offset=offset,
+                    timeout=30,
+                    allowed_updates=["message", "callback_query"],
+                ),
+                request_timeout=45,
+            )
+            for update in updates:
+                offset = update.update_id + 1
+                await dispatcher.feed_update(bot, update)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -37,12 +50,7 @@ async def _run_polling_with_retries(polling_factory) -> None:
                 "telegram polling failed",
                 extra={"service": "telegram", "event": "telegram_polling_failed"},
             )
-        else:
-            logger.warning(
-                "telegram polling stopped",
-                extra={"service": "telegram", "event": "telegram_polling_stopped"},
-            )
-        await asyncio.sleep(15)
+            await asyncio.sleep(15)
 
 
 async def main() -> None:
@@ -65,9 +73,7 @@ async def main() -> None:
 
     try:
         logger.info("Start polling", extra={"service": "app", "event": "Start polling"})
-        await _run_polling_with_retries(
-            lambda: dispatcher.start_polling(bot, polling_timeout=30)
-        )
+        await _run_polling_with_retries(bot, dispatcher)
     finally:
         scheduler.shutdown(wait=False)
         scheduler_state.running = False
