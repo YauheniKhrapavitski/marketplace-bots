@@ -76,7 +76,7 @@ class AccessMiddleware(BaseMiddleware):
         user = data.get("event_from_user")
         if user is not None and not _is_allowed(user.id, self.allowed_user_ids):
             if isinstance(event, Message):
-                await event.answer("У вас нет доступа к этому боту.")
+                await _safe_answer(event, "У вас нет доступа к этому боту.")
             elif isinstance(event, CallbackQuery):
                 await event.answer("У вас нет доступа к этому боту.", show_alert=True)
             return None
@@ -91,14 +91,15 @@ def build_dispatcher(context: BotContext) -> Dispatcher:
     @router.message(Command("start"))
     async def start(message: Message, state: FSMContext) -> None:
         await state.clear()
-        await message.answer(
+        await _safe_answer(
+            message,
             "Готов заполнить ТТН PDF и собрать Excel по товарным позициям.\n\n" + HELP_TEXT,
             reply_markup=start_keyboard(),
         )
 
     @router.message(Command("help"))
     async def help_command(message: Message) -> None:
-        await message.answer(HELP_TEXT)
+        await _safe_answer(message, HELP_TEXT)
 
     @router.message(Command("new"))
     async def new_command(message: Message, state: FSMContext) -> None:
@@ -113,33 +114,35 @@ def build_dispatcher(context: BotContext) -> Dispatcher:
 
     @router.message(Command("template"))
     async def template_command(message: Message) -> None:
-        await message.answer(empty_template_text())
+        await _safe_answer(message, empty_template_text())
 
     @router.message(Command("my_template"))
     async def my_template(message: Message) -> None:
         user_id = _message_user_id(message)
         if user_id is None:
-            await message.answer("Не удалось определить Telegram ID пользователя.")
+            await _safe_answer(message, "Не удалось определить Telegram ID пользователя.")
             return
         data = context.storage.get_user_template(user_id)
         if data is None:
-            await message.answer("Сохранённый шаблон пока отсутствует.")
+            await _safe_answer(message, "Сохранённый шаблон пока отсутствует.")
             return
-        await message.answer(template_to_user_text(data))
+        await _safe_answer(message, template_to_user_text(data))
 
     @router.message(Command("delete_template"))
     async def delete_template(message: Message) -> None:
         user_id = _message_user_id(message)
         if user_id is None:
-            await message.answer("Не удалось определить Telegram ID пользователя.")
+            await _safe_answer(message, "Не удалось определить Telegram ID пользователя.")
             return
         deleted = context.storage.delete_user_template(user_id)
-        await message.answer("Шаблон удалён." if deleted else "Сохранённый шаблон не найден.")
+        await _safe_answer(
+            message, "Шаблон удалён." if deleted else "Сохранённый шаблон не найден."
+        )
 
     @router.message(Command("cancel"))
     async def cancel(message: Message, state: FSMContext) -> None:
         await state.clear()
-        await message.answer("Операция отменена.")
+        await _safe_answer(message, "Операция отменена.")
 
     @router.message(TtnStates.waiting_pdf, F.document)
     async def receive_pdf(message: Message, state: FSMContext, bot: Bot) -> None:
@@ -148,16 +151,19 @@ def build_dispatcher(context: BotContext) -> Dispatcher:
             return
         user_id = _message_user_id(message)
         if user_id is None:
-            await message.answer("Не удалось определить Telegram ID пользователя.")
+            await _safe_answer(message, "Не удалось определить Telegram ID пользователя.")
             return
         if not document.file_name or not document.file_name.lower().endswith(".pdf"):
-            await message.answer("Загрузите документ в формате PDF.")
+            await _safe_answer(message, "Загрузите документ в формате PDF.")
             return
         if document.mime_type not in {"application/pdf", "application/x-pdf"}:
-            await message.answer("Файл должен иметь MIME-тип PDF.")
+            await _safe_answer(message, "Файл должен иметь MIME-тип PDF.")
             return
         if document.file_size and document.file_size > context.settings.max_file_size_bytes:
-            await message.answer(f"Размер PDF превышает {context.settings.max_file_size_mb} МБ.")
+            await _safe_answer(
+                message,
+                f"Размер PDF превышает {context.settings.max_file_size_mb} МБ.",
+            )
             return
 
         job_id = uuid.uuid4().hex
@@ -166,7 +172,8 @@ def build_dispatcher(context: BotContext) -> Dispatcher:
         source_path = job_dir / _safe_pdf_file_name(document.file_name)
         file = await bot.get_file(document.file_id)
         if file.file_path is None:
-            await message.answer(
+            await _safe_answer(
+                message,
                 "Не удалось получить файл из Telegram. Попробуйте загрузить PDF ещё раз."
             )
             return
@@ -176,20 +183,21 @@ def build_dispatcher(context: BotContext) -> Dispatcher:
             validate_pdf(source_path, context.template)
         except PdfValidationError as exc:
             shutil.rmtree(job_dir, ignore_errors=True)
-            await message.answer(exc.user_message)
+            await _safe_answer(message, exc.user_message)
             return
 
         context.storage.create_job(job_id, user_id, source_path)
         await state.set_state(TtnStates.waiting_full_data)
         await state.update_data(job_id=job_id, job_dir=str(job_dir), source_pdf=str(source_path))
-        await message.answer(
+        await _safe_answer(
+            message,
             "PDF проверен. Заполните данные одним сообщением:\n\n" + empty_template_text(),
             reply_markup=fill_mode_keyboard(),
         )
 
     @router.message(TtnStates.waiting_pdf)
     async def receive_non_pdf(message: Message) -> None:
-        await message.answer("Загрузите исходную ТТН как документ PDF.")
+        await _safe_answer(message, "Загрузите исходную ТТН как документ PDF.")
 
     @router.callback_query(TtnStates.waiting_full_data, F.data == "step_fill")
     async def step_fill(callback: CallbackQuery, state: FSMContext) -> None:
@@ -197,7 +205,7 @@ def build_dispatcher(context: BotContext) -> Dispatcher:
         await state.set_state(TtnStates.waiting_step_value)
         await state.update_data(step_index=0, step_values={})
         if isinstance(callback.message, Message):
-            await callback.message.answer(STEP_FIELDS[0][1])
+            await _safe_answer(callback.message, STEP_FIELDS[0][1])
 
     @router.message(TtnStates.waiting_step_value)
     async def receive_step_value(message: Message, state: FSMContext) -> None:
@@ -209,12 +217,12 @@ def build_dispatcher(context: BotContext) -> Dispatcher:
         step_index += 1
         if step_index < len(STEP_FIELDS):
             await state.update_data(step_index=step_index, step_values=step_values)
-            await message.answer(STEP_FIELDS[step_index][1])
+            await _safe_answer(message, STEP_FIELDS[step_index][1])
             return
         try:
             edit_data = _edit_data_from_steps(step_values)
         except ValueError as exc:
-            await message.answer(str(exc))
+            await _safe_answer(message, str(exc))
             return
         await _finish_job(message, state, edit_data, context)
 
@@ -223,13 +231,14 @@ def build_dispatcher(context: BotContext) -> Dispatcher:
         try:
             edit_data = parse_edit_data_message(message.text or "")
         except ValueError as exc:
-            await message.answer(str(exc))
+            await _safe_answer(message, str(exc))
             return
         await _finish_job(message, state, edit_data, context)
 
     @router.message()
     async def fallback(message: Message) -> None:
-        await message.answer(
+        await _safe_answer(
+            message,
             "Используйте /new, чтобы обработать новую ТТН, или /help для инструкции."
         )
 
@@ -241,7 +250,7 @@ def build_dispatcher(context: BotContext) -> Dispatcher:
 async def _ask_pdf(message: Message, state: FSMContext) -> None:
     await state.clear()
     await state.set_state(TtnStates.waiting_pdf)
-    await message.answer("Загрузите исходную ТТН как документ PDF.")
+    await _safe_answer(message, "Загрузите исходную ТТН как документ PDF.")
 
 
 async def _finish_job(
@@ -255,7 +264,7 @@ async def _finish_job(
     job_dir = Path(str(state_data["job_dir"]))
     source_pdf = Path(str(state_data["source_pdf"]))
 
-    await message.answer("Заполняю PDF и создаю Excel. Это может занять несколько секунд.")
+    await _safe_answer(message, "Заполняю PDF и создаю Excel. Это может занять несколько секунд.")
     async with context.semaphore:
         try:
             result = await asyncio.to_thread(
@@ -271,16 +280,18 @@ async def _finish_job(
         except Exception as exc:
             logger.exception("TTN job failed")
             context.storage.update_job(job_id, "failed", str(exc))
-            await message.answer("Не удалось обработать ТТН. Проверьте PDF или шаблон документа.")
+            await _safe_answer(
+                message, "Не удалось обработать ТТН. Проверьте PDF или шаблон документа."
+            )
             return
 
     user_id = _message_user_id(message)
     if user_id is not None:
         context.storage.save_user_template(user_id, edit_data)
     await state.clear()
-    await message.answer_document(FSInputFile(result.filled_pdf))
-    await message.answer_document(FSInputFile(result.excel))
-    await message.answer("Готово. Данные сохранены как ваш шаблон для следующих ТТН.")
+    await _safe_answer_document(message, FSInputFile(result.filled_pdf))
+    await _safe_answer_document(message, FSInputFile(result.excel))
+    await _safe_answer(message, "Готово. Данные сохранены как ваш шаблон для следующих ТТН.")
 
 
 def _edit_data_from_steps(values: dict[str, str]) -> TtnEditData:
@@ -318,7 +329,34 @@ def _safe_pdf_file_name(file_name: str) -> str:
     return safe_name
 
 
+async def _safe_answer(message: Message, *args: Any, **kwargs: Any) -> None:
+    for attempt in range(1, 4):
+        try:
+            await message.answer(*args, **kwargs)
+            return
+        except Exception:
+            if attempt == 3:
+                logger.exception("Could not send Telegram message")
+                return
+            logger.warning("Could not send Telegram message, retrying", exc_info=True)
+            await asyncio.sleep(3 * attempt)
+
+
+async def _safe_answer_document(message: Message, *args: Any, **kwargs: Any) -> None:
+    for attempt in range(1, 4):
+        try:
+            await message.answer_document(*args, **kwargs)
+            return
+        except Exception:
+            if attempt == 3:
+                logger.exception("Could not send Telegram document")
+                return
+            logger.warning("Could not send Telegram document, retrying", exc_info=True)
+            await asyncio.sleep(3 * attempt)
+
+
 def _message_user_id(message: Message | InaccessibleMessage) -> int | None:
     if not isinstance(message, Message) or message.from_user is None:
         return None
     return message.from_user.id
+
