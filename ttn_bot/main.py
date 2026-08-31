@@ -3,10 +3,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import shutil
+import socket
 import time
 from pathlib import Path
 
 from aiogram import Bot
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.types import BotCommand
 
 from ttn_bot.bot import BotContext, build_dispatcher
@@ -32,10 +34,12 @@ async def main() -> None:
         template=template,
         semaphore=asyncio.Semaphore(settings.max_concurrent_jobs),
     )
-    bot = Bot(settings.bot_token)
-    await _set_bot_commands(bot)
+    session = AiohttpSession(timeout=120)
+    session._connector_init["family"] = socket.AF_INET
+    bot = Bot(settings.bot_token, session=session)
+    await _set_bot_commands_without_blocking_startup(bot)
     dispatcher = build_dispatcher(context)
-    await dispatcher.start_polling(bot)
+    await _run_polling_with_retries(lambda: dispatcher.start_polling(bot, polling_timeout=0))
 
 
 def _cleanup_old_temp_dirs(temp_dir: Path, lifetime_hours: int) -> None:
@@ -62,6 +66,26 @@ async def _set_bot_commands(bot: Bot) -> None:
             BotCommand(command="help", description="Инструкция"),
         ]
     )
+
+
+async def _set_bot_commands_without_blocking_startup(bot: Bot) -> None:
+    try:
+        await _set_bot_commands(bot)
+    except Exception:
+        logging.getLogger(__name__).warning("Telegram command setup failed", exc_info=True)
+
+
+async def _run_polling_with_retries(polling_factory) -> None:
+    while True:
+        try:
+            await polling_factory()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logging.getLogger(__name__).exception("Telegram polling failed")
+        else:
+            logging.getLogger(__name__).warning("Telegram polling stopped")
+        await asyncio.sleep(15)
 
 
 if __name__ == "__main__":
