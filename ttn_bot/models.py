@@ -70,6 +70,7 @@ def empty_template_text() -> str:
 
 def parse_series_and_number(value: str) -> tuple[str, str]:
     normalized = " ".join(value.strip().split())
+    normalized = re.sub(r"^(?:TTN|ТТН)\s+", "", normalized, flags=re.IGNORECASE)
     match = re.match(r"^([A-Za-zА-Яа-яЁё]+)\s*[-/]?\s*(\d[\dA-Za-zА-Яа-яЁё/-]*)$", normalized)
     if not match:
         raise ValueError("Укажите серию и номер, например: ЕМ 1926709")

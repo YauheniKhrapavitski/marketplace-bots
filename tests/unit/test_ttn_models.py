@@ -1,4 +1,4 @@
-from ttn_bot.models import parse_edit_data_message
+from ttn_bot.models import parse_edit_data_message, parse_series_and_number
 
 
 def test_parse_edit_data_message_splits_series_and_number() -> None:
@@ -34,3 +34,12 @@ def test_parse_edit_data_message_autofills_dependent_people() -> None:
 
     assert data.goods_accepted_by == "Мартиневский Иван Васильевич"
     assert data.shipper_handed_over_by == "Китасов А.С."
+
+
+def test_parse_series_and_number_accepts_plain_value() -> None:
+    assert parse_series_and_number("ЕМ 1926709") == ("ЕМ", "1926709")
+
+
+def test_parse_series_and_number_accepts_ttn_prefix() -> None:
+    assert parse_series_and_number("TTN EM 1926709") == ("EM", "1926709")
+    assert parse_series_and_number("ТТН ЕМ 1926709") == ("ЕМ", "1926709")

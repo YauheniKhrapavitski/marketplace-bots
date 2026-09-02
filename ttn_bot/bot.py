@@ -213,6 +213,12 @@ def build_dispatcher(context: BotContext) -> Dispatcher:
         step_index = int(state_data.get("step_index", 0))
         step_values = dict(state_data.get("step_values", {}))
         field_name = STEP_FIELDS[step_index][0]
+        if field_name == "series_and_number":
+            try:
+                parse_series_and_number(message.text or "")
+            except ValueError as exc:
+                await _safe_answer(message, str(exc))
+                return
         step_values[field_name] = message.text or ""
         step_index += 1
         if step_index < len(STEP_FIELDS):
@@ -222,6 +228,12 @@ def build_dispatcher(context: BotContext) -> Dispatcher:
         try:
             edit_data = _edit_data_from_steps(step_values)
         except ValueError as exc:
+            if "серию и номер" in str(exc).lower() and _replace_step_series(
+                step_values, message.text or ""
+            ):
+                await state.update_data(step_index=3, step_values=step_values)
+                await _safe_answer(message, STEP_FIELDS[3][1])
+                return
             await _safe_answer(message, str(exc))
             return
         await _finish_job(message, state, edit_data, context)
@@ -307,6 +319,15 @@ def _edit_data_from_steps(values: dict[str, str]) -> TtnEditData:
         release_allowed_by=release_allowed_by,
         shipper_handed_over_by=release_allowed_by,
     )
+
+
+def _replace_step_series(values: dict[str, str], value: str) -> bool:
+    try:
+        parse_series_and_number(value)
+    except ValueError:
+        return False
+    values["series_and_number"] = value
+    return True
 
 
 def _is_allowed(user_id: int, allowed_user_ids: list[int]) -> bool:
