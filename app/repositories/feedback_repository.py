@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.feedback import Feedback
@@ -74,6 +74,18 @@ class FeedbackRepository:
             )
         )
         return int(value or 0)
+
+    async def archive_pending_before(self, before: datetime) -> int:
+        result = await self._session.execute(
+            update(Feedback)
+            .where(
+                Feedback.status.in_(["new", "pending", "failed", "postponed"]),
+                Feedback.created_at_wb.is_not(None),
+                Feedback.created_at_wb < before,
+            )
+            .values(status="ignored")
+        )
+        return int(result.rowcount or 0)
 
     async def count_answered_since(self, since: datetime) -> int:
         value = await self._session.scalar(

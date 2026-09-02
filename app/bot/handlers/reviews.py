@@ -1,4 +1,5 @@
 import re
+from datetime import UTC, datetime
 from math import ceil
 
 from aiogram import F, Router
@@ -83,6 +84,19 @@ async def sync(message: Message) -> None:
 @router.message(Command("process_reviews"))
 async def process_reviews(message: Message) -> None:
     await run_review_sync(message, retry_command="/process_reviews", show_next=True)
+
+
+@router.message(Command("archive_old_reviews"))
+async def archive_old_reviews(message: Message) -> None:
+    before = _archive_before_from_message(message)
+    async with SessionFactory() as session:
+        archived_count = await FeedbackRepository(session).archive_pending_before(before)
+        queue_count = await FeedbackRepository(session).count_queue()
+        await session.commit()
+    await message.answer(
+        f"Старые отзывы до {before.date().isoformat()} убраны из очереди: "
+        f"{archived_count}. Осталось в очереди: {queue_count}."
+    )
 
 
 async def run_review_sync(
@@ -210,6 +224,17 @@ def _wb_rate_limit_message(exc: WildberriesRateLimitError, action: str) -> str:
         "Wildberries ограничил частоту запросов для категории «Вопросы и отзывы». "
         f"Подождите примерно {minutes} мин. и повторите {action}."
     )
+
+
+def _archive_before_from_message(message: Message) -> datetime:
+    text = message.text or ""
+    _, _, raw_date = text.partition(" ")
+    if not raw_date.strip():
+        return datetime(2026, 9, 1, tzinfo=UTC)
+    try:
+        return datetime.fromisoformat(raw_date.strip()).replace(tzinfo=UTC)
+    except ValueError:
+        return datetime(2026, 9, 1, tzinfo=UTC)
 
 
 @router.callback_query(F.data.startswith("review:template:"))

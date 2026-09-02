@@ -21,6 +21,7 @@ async def help_command(message: Message) -> None:
         "/reviews - следующий отзыв\n"
         "/sync - ручная синхронизация\n"
         "/process_reviews - обработать накопившиеся отзывы\n"
+        "/archive_old_reviews - убрать старые отзывы из очереди\n"
         "/templates - управление шаблонами\n"
         "/settings - настройки\n"
         "/history - последние операции"
