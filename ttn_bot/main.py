@@ -34,12 +34,12 @@ async def main() -> None:
         template=template,
         semaphore=asyncio.Semaphore(settings.max_concurrent_jobs),
     )
-    session = AiohttpSession(timeout=120)
+    session = AiohttpSession(timeout=30)
     session._connector_init["family"] = socket.AF_INET
     bot = Bot(settings.bot_token, session=session)
     await _set_bot_commands_without_blocking_startup(bot)
     dispatcher = build_dispatcher(context)
-    await _run_polling_with_retries(lambda: dispatcher.start_polling(bot, polling_timeout=0))
+    await _run_polling_with_retries(lambda: dispatcher.start_polling(bot, polling_timeout=20))
 
 
 def _cleanup_old_temp_dirs(temp_dir: Path, lifetime_hours: int) -> None:

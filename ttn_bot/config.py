@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from pathlib import Path
+from typing import Annotated
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -15,7 +17,9 @@ class Settings(BaseSettings):
     )
 
     bot_token: str = Field(alias="BOT_TOKEN")
-    allowed_user_ids: list[int] = Field(default_factory=list, alias="ALLOWED_USER_IDS")
+    allowed_user_ids: Annotated[list[int], NoDecode] = Field(
+        default_factory=list, alias="ALLOWED_USER_IDS"
+    )
     max_file_size_mb: int = Field(default=30, alias="MAX_FILE_SIZE_MB")
     temp_file_lifetime_hours: int = Field(default=24, alias="TEMP_FILE_LIFETIME_HOURS")
     max_concurrent_jobs: int = Field(default=2, alias="MAX_CONCURRENT_JOBS")
@@ -37,6 +41,12 @@ class Settings(BaseSettings):
         if isinstance(value, list):
             return [int(item) for item in value]
         if isinstance(value, str):
+            stripped = value.strip()
+            if stripped.startswith("["):
+                decoded = json.loads(stripped)
+                if not isinstance(decoded, list):
+                    raise TypeError("ALLOWED_USER_IDS JSON value must be a list")
+                return [int(item) for item in decoded]
             return [int(item.strip()) for item in value.split(",") if item.strip()]
         raise TypeError("ALLOWED_USER_IDS must be empty or comma-separated Telegram IDs")
 
