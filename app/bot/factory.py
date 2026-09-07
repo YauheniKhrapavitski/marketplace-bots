@@ -44,7 +44,7 @@ def create_dispatcher(
 
 
 def create_bot(token: str) -> Bot:
-    session = AiohttpSession(timeout=120)
+    session = AiohttpSession(timeout=30)
     session._connector_init["family"] = socket.AF_INET
     return Bot(
         token=token,
