@@ -5,4 +5,7 @@ services:
     env_file:
       - .env.wb
     network_mode: host
+    depends_on:
+      db:
+        condition: service_healthy
     command: sh -c "alembic upgrade head && python -m app.polling_main"
