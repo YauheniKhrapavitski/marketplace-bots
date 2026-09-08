@@ -1,3 +1,4 @@
+import logging
 import re
 from datetime import UTC, datetime
 from math import ceil
@@ -11,7 +12,11 @@ from app.bot.messages.reviews import format_feedback_card
 from app.config import get_settings
 from app.db.session import SessionFactory
 from app.integrations.wildberries.client import WildberriesClient
-from app.integrations.wildberries.exceptions import WildberriesRateLimitError
+from app.integrations.wildberries.exceptions import (
+    WildberriesAuthError,
+    WildberriesRateLimitError,
+    WildberriesRequestError,
+)
 from app.repositories.account_repository import AccountRepository
 from app.repositories.action_repository import ActionRepository
 from app.repositories.feedback_repository import FeedbackRepository
@@ -19,6 +24,7 @@ from app.services.encryption_service import EncryptionService
 from app.services.feedback_service import FeedbackService
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 
 @router.message(Command("reviews"))
@@ -107,13 +113,24 @@ async def run_review_sync(
     await message.answer("Синхронизация началась. Проверяю новые отзывы Wildberries.")
     try:
         received, created, updated = await run_sync_once()
+    except WildberriesAuthError:
+        await message.answer(
+            "Wildberries отклонил API-токен. Проверьте, что в .env.wb указан свежий "
+            "production-токен с доступом к категории «Вопросы и отзывы», "
+            f"и повторите {retry_command}."
+        )
+        raise
     except WildberriesRateLimitError as exc:
         await message.answer(_wb_rate_limit_message(exc, retry_command))
         return
+    except WildberriesRequestError as exc:
+        await message.answer(_wb_request_error_message(exc, retry_command))
+        raise
     except Exception:
+        logger.exception("Unexpected WB sync error")
         await message.answer(
-            "Синхронизация не завершилась. Проверьте WB API-токен, режим sandbox/production "
-            f"и повторите {retry_command}."
+            "Синхронизация не завершилась из-за внутренней ошибки бота. "
+            "Проверьте свежие логи wb-bot на VPS."
         )
         raise
     async with SessionFactory() as session:
@@ -223,6 +240,18 @@ def _wb_rate_limit_message(exc: WildberriesRateLimitError, action: str) -> str:
     return (
         "Wildberries ограничил частоту запросов для категории «Вопросы и отзывы». "
         f"Подождите примерно {minutes} мин. и повторите {action}."
+    )
+
+
+def _wb_request_error_message(exc: WildberriesRequestError, action: str) -> str:
+    if exc.status_code == 0:
+        return (
+            "Не удалось подключиться к Wildberries API. Проверьте сеть/DNS на VPS "
+            f"и повторите {action}."
+        )
+    return (
+        f"Wildberries API вернул ошибку HTTP {exc.status_code}. "
+        f"Повторите {action} позже или проверьте настройки WB API."
     )
 
 
