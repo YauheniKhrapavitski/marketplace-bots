@@ -34,7 +34,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_v2:/var/lib/postgresql/data
     healthcheck:
       test:
         [
@@ -46,4 +46,4 @@ services:
       retries: 10
 
 volumes:
-  postgres_data:
+  postgres_data_v2:
