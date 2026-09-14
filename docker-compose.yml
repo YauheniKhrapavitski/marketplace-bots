@@ -29,7 +29,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: wb_assistant
-      POSTGRES_USER: postgres
+      POSTGRES_USER: wb_app
       POSTGRES_PASSWORD: postgres
     ports:
       - "5432:5432"
