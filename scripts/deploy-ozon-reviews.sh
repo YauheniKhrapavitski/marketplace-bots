@@ -50,6 +50,13 @@ do
     require_env_value "$key"
 done
 
+memory_kb="$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo)"
+swap_kb="$(awk '/^SwapTotal:/ { print $2 }' /proc/meminfo)"
+if [ "$((memory_kb + swap_kb))" -lt 2097152 ]; then
+    echo "At least 2 GiB of RAM plus swap is required before building Ozon Reviews." >&2
+    exit 1
+fi
+
 ozon_token="$(read_env_value OZON_TELEGRAM_BOT_TOKEN "$ENV_FILE")"
 wb_token="$(read_env_value TELEGRAM_BOT_TOKEN .env.wb)"
 ttn_token="$(read_env_value BOT_TOKEN .env)"

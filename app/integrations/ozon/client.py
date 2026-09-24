@@ -34,7 +34,7 @@ class OzonClient:
         self._client_id = client_id
         self._api_key = api_key
         self._max_retries = max_retries
-        self._rate_limiter = rate_limiter or AsyncRateLimiter()
+        self._rate_limiter = rate_limiter or AsyncRateLimiter(0.25)
         timeout = httpx.Timeout(timeout=40, connect=connect_timeout, read=read_timeout, write=10)
         self._client = http_client or httpx.AsyncClient(base_url=self._base_url, timeout=timeout)
 

@@ -78,6 +78,20 @@ class FakeOzonReviewRepo:
         return self.review, was_created
 
 
+class FakeMultipleOzonReviewRepo:
+    def __init__(self) -> None:
+        self.reviews: dict[str, FakeOzonReview] = {}
+
+    async def upsert_from_ozon(
+        self, account_id: int, item: OzonApiReview
+    ) -> tuple[FakeOzonReview, bool]:
+        review = FakeOzonReview(rating=item.rating, text=item.text)
+        review.id = len(self.reviews) + 1
+        review.ozon_review_id = item.id
+        self.reviews[item.id] = review
+        return review, True
+
+
 class FakeOzonTemplateRepo:
     async def list_active_candidates(self) -> list[OzonReviewTemplateCandidate]:
         return [
@@ -176,3 +190,33 @@ async def test_ozon_sync_does_not_auto_send_three_star() -> None:
     assert review.status == "manual"
     assert client.sent == []
     assert client.processed == []
+
+
+@pytest.mark.asyncio
+async def test_ozon_sync_marks_positive_reviews_in_one_batch() -> None:
+    client = FakeOzonClient()
+
+    async def list_reviews(
+        *, limit: int, offset: int, status: str | None = None, sort_dir: str = "DESC"
+    ) -> list[OzonApiReview]:
+        if offset:
+            return []
+        return [
+            OzonApiReview(id="review-1", rating=5, text="Отлично"),
+            OzonApiReview(id="review-2", rating=4, text="Хорошо"),
+        ]
+
+    client.list_reviews = list_reviews  # type: ignore[method-assign]
+    actions = FakeOzonActionRepo()
+    service = OzonReviewSyncService(
+        FakeOzonAccount(),  # type: ignore[arg-type]
+        client,  # type: ignore[arg-type]
+        FakeMultipleOzonReviewRepo(),  # type: ignore[arg-type]
+        FakeOzonTemplateRepo(),  # type: ignore[arg-type]
+        actions,  # type: ignore[arg-type]
+        OzonReviewMatchingService(),
+        OzonReviewAnswerRenderer(),
+    )
+
+    assert await service.sync() == (2, 2, 0)
+    assert client.processed == [["review-1", "review-2"]]

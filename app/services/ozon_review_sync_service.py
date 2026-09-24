@@ -48,6 +48,7 @@ class OzonReviewSyncService:
                 if not items:
                     break
                 received += len(items)
+                positive_reviews: list[OzonReview] = []
                 for item in items:
                     review, was_created = await self._reviews.upsert_from_ozon(
                         self._account.id, item
@@ -80,8 +81,9 @@ class OzonReviewSyncService:
                             )
                     else:
                         updated += 1
-                    if review.rating in {4, 5}:
-                        await self._mark_positive_review_processed(review)
+                    if review.rating in {4, 5} and await self._prepare_positive_review(review):
+                        positive_reviews.append(review)
+                await self._mark_positive_reviews_processed(positive_reviews)
                 offset += page_size
             self._account.last_successful_sync_at = datetime.now(UTC)
             self._account.last_sync_error = None
@@ -91,15 +93,15 @@ class OzonReviewSyncService:
             )
             return received, created, updated
 
-    async def _mark_positive_review_processed(self, review: OzonReview) -> None:
+    async def _prepare_positive_review(self, review: OzonReview) -> bool:
         review_id = review.id
         if review.status in {"processed", "sending"}:
-            return
+            return False
         if review.ozon_status == "PROCESSED" or await self._actions.has_action(
             review_id, "marked_processed"
         ):
             review.status = "processed"
-            return
+            return False
         old_status = review.status
         review.status = "sending"
         await self._actions.add(
@@ -109,34 +111,47 @@ class OzonReviewSyncService:
             "sending",
             payload={"auto": True, "reason": "positive_rating_read", "rating": review.rating},
         )
+        return True
+
+    async def _mark_positive_reviews_processed(self, reviews: list[OzonReview]) -> None:
+        if not reviews:
+            return
         try:
-            await self._ozon_client.mark_reviews_processed([review.ozon_review_id])
+            await self._ozon_client.mark_reviews_processed(
+                [review.ozon_review_id for review in reviews]
+            )
         except Exception as exc:
-            review.status = "failed"
             detail = getattr(exc, "detail", "")
+            for review in reviews:
+                review.status = "failed"
+                await self._actions.add(
+                    review.id,
+                    "mark_processed_failed",
+                    "sending",
+                    "failed",
+                    payload={
+                        "auto": True,
+                        "reason": "positive_rating_read",
+                        "rating": review.rating,
+                        "error": type(exc).__name__,
+                        "detail": detail,
+                    },
+                )
+            raise
+        for review in reviews:
+            review.status = "processed"
+            review.ozon_status = "PROCESSED"
             await self._actions.add(
-                review_id,
-                "mark_processed_failed",
+                review.id,
+                "marked_processed",
                 "sending",
-                "failed",
+                "processed",
                 payload={
                     "auto": True,
                     "reason": "positive_rating_read",
                     "rating": review.rating,
-                    "error": type(exc).__name__,
-                    "detail": detail,
                 },
             )
-            raise
-        review.status = "processed"
-        review.ozon_status = "PROCESSED"
-        await self._actions.add(
-            review_id,
-            "marked_processed",
-            "sending",
-            "processed",
-            payload={"auto": True, "reason": "positive_rating_read", "rating": review.rating},
-        )
 
     @staticmethod
     def _to_context(review: OzonReview) -> OzonReviewContext:

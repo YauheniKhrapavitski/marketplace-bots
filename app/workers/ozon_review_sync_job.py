@@ -1,3 +1,5 @@
+import asyncio
+
 from app.config import get_settings
 from app.db.session import SessionFactory
 from app.integrations.ozon.client import OzonClient
@@ -12,8 +14,22 @@ from app.services.ozon_review_rendering_service import OzonReviewAnswerRenderer
 from app.services.ozon_review_sync_service import OzonReviewSyncService
 from app.services.ozon_review_template_catalog import STARTER_OZON_REVIEW_TEMPLATES
 
+_active_sync_task: asyncio.Task[tuple[int, int, int]] | None = None
+
 
 async def run_ozon_review_sync_once() -> tuple[int, int, int]:
+    global _active_sync_task
+    if _active_sync_task is None or _active_sync_task.done():
+        _active_sync_task = asyncio.create_task(_execute_ozon_review_sync_once())
+    task = _active_sync_task
+    try:
+        return await asyncio.shield(task)
+    finally:
+        if task.done() and _active_sync_task is task:
+            _active_sync_task = None
+
+
+async def _execute_ozon_review_sync_once() -> tuple[int, int, int]:
     settings = get_settings()
     async with SessionFactory() as session:
         templates = OzonReviewTemplateRepository(session)
