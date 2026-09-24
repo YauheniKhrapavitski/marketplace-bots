@@ -10,7 +10,7 @@ Small Wildberries sellers or operators who manually control customer-facing revi
 
 ## Current Goal
 
-Maintain the working reviews MVP and the standalone Wildberries Excel export agent. Plan separate buyer questions, Ozon reviews automation MVPs, and cutter cabinet web app work without mixing their workflows.
+Maintain the working WB Reviews, Ozon Reviews, and Ozon TTN bots plus the standalone Wildberries Excel export agent without mixing their workflows or deployment state.
 
 ## Non-Goals
 
@@ -28,7 +28,7 @@ Python 3.12, aiogram 3.x, FastAPI, PostgreSQL 16, SQLAlchemy 2.x async ORM, Alem
 - `app/repositories`: database access boundaries.
 - `app/services`: business workflows and idempotent operations.
 - `app/integrations/wildberries`: WB API client, schemas, retry, rate limiting.
-- planned `app/integrations/ozon`: Ozon API client, schemas, retry, rate limiting.
+- `app/integrations/ozon`: Ozon API client, schemas, retry, rate limiting.
 - `app/workers`: scheduler and sync job.
 - root `wb_export_agent.py`, `wb_api.py`, `google_sheets_writer.py`, `models.py`: standalone Wildberries Google Sheets export agent.
 - `docs/plan`: separate feature plans, including buyer questions and Ozon reviews automation.
@@ -60,8 +60,8 @@ pytest
 
 ## Deploy Target
 
-Docker Compose with `bot` and `db` services. The application container runs Telegram polling, FastAPI health endpoints, and the scheduler in one process for MVP.
+WB Reviews and Ozon TTN use the main Compose project. Ozon Reviews uses only `docker-compose.ozon-server.yml` as the separate `marketplace-bots-ozon-reviews` project, with its own `ozon-db`, network, and volume.
 
 ## Known Risks
 
-WB API payloads can evolve. Unknown fields are tolerated and raw payloads are stored, but endpoint contract changes require client updates. Telegram handlers intentionally avoid direct DB and WB calls.
+WB and Ozon API payloads can evolve. Unknown fields are tolerated and raw payloads are stored, but endpoint contract changes require client updates. Never merge the Ozon Reviews server Compose file with the main Compose file or reuse WB/TTN Telegram tokens.

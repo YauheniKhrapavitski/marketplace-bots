@@ -224,3 +224,37 @@ Only one Telegram polling instance may run for a bot token. Use either Docker Co
 `make run-ttn`, not both at the same time. `scripts/start-bot.ps1` stops a local
 `python -m ttn_bot.main` process before starting Docker to avoid Telegram `getUpdates`
 conflicts.
+
+## Ozon Reviews Bot Deployment
+
+Ozon Reviews runs as a separate Compose project with its own PostgreSQL container,
+Docker network, and persistent volume. Do not combine this file with `docker-compose.yml`;
+that file owns the working WB Reviews and Ozon TTN services.
+
+On the server, create the private environment file and fill its required values:
+
+```bash
+cp .env.ozon.example .env.ozon
+nano .env.ozon
+chmod 600 .env.ozon
+```
+
+Use an alphanumeric value for `OZON_DB_PASSWORD` (for example, output from
+`openssl rand -hex 24`). Keep `APP_ENCRYPTION_KEY` stable after the first successful
+sync because it encrypts the stored Ozon API key.
+
+Deploy or update only Ozon Reviews:
+
+```bash
+sh scripts/deploy-ozon-reviews.sh
+```
+
+Inspect only the Ozon project:
+
+```bash
+docker compose --project-name marketplace-bots-ozon-reviews --env-file .env.ozon -f docker-compose.ozon-server.yml ps
+docker compose --project-name marketplace-bots-ozon-reviews --env-file .env.ozon -f docker-compose.ozon-server.yml logs --tail=100 ozon-reviews-bot
+```
+
+The Ozon database has no published host port and is not shared with WB Reviews. Never
+run `down -v` unless permanent deletion of the Ozon Reviews database is intended.

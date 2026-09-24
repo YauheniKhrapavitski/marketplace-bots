@@ -1,8 +1,51 @@
+name: marketplace-bots-ozon-reviews
+
 services:
   ozon-reviews-bot:
     build: .
     restart: unless-stopped
+    init: true
     env_file:
       - .env.ozon
-    network_mode: host
-    command: sh -c "alembic upgrade head && python -m app.ozon_polling_main"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${OZON_DB_USER:-ozon_app}:${OZON_DB_PASSWORD:?Set OZON_DB_PASSWORD in .env.ozon}@ozon-db:5432/${OZON_DB_NAME:-ozon_reviews}
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    depends_on:
+      ozon-db:
+        condition: service_healthy
+    command: sh -c "alembic upgrade head && exec python -m app.ozon_polling_main"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ozon-db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${OZON_DB_NAME:-ozon_reviews}
+      POSTGRES_USER: ${OZON_DB_USER:-ozon_app}
+      POSTGRES_PASSWORD: ${OZON_DB_PASSWORD:?Set OZON_DB_PASSWORD in .env.ozon}
+    volumes:
+      - ozon_reviews_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "PGPASSWORD=$$POSTGRES_PASSWORD psql -h 127.0.0.1 -U $$POSTGRES_USER -d $$POSTGRES_DB -c 'SELECT 1'",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  ozon_reviews_postgres_data:
